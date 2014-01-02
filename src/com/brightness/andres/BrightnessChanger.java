@@ -122,6 +122,8 @@ public class BrightnessChanger implements IOnDataReceived {
 		frame.getContentPane().setLayout(null);
 		frame.setTitle("Controlador de brillo");
 		frame.setResizable(false);
+		frame.setIconImage(new ImageIcon("sun.png").getImage());
+		
 		// Si es posible al minimizar la aplicacion se minimiza al SystemTray
 		if (SystemTray.isSupported()) {
             System.out.println("SystemTray soportado");
@@ -133,7 +135,8 @@ public class BrightnessChanger implements IOnDataReceived {
 						try {
 							// Creo el tray icon
 		                    final TrayIcon trayIcon = new TrayIcon(
-		                    		new ImageIcon("bulb.gif").getImage(), "Tray Icon");
+		                    		new ImageIcon("sun.png").getImage(), "Controlador de brillo");
+		                    trayIcon.setImageAutoSize(true);
 		                    
 		                    // Cuando hago click en el icono del tray muestro nuevamente la aplicacion
 		                    trayIcon.addMouseListener(new MouseAdapter() {
