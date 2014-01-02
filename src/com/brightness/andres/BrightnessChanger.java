@@ -43,6 +43,7 @@ public class BrightnessChanger implements IOnDataReceived {
 	// Keys
 	private static final String SAMPLE_RATE_KEY = "sampleRate";
 	private static final String PORT_NUMBER_KEY = "portNumber";
+	private static final String VERSION = "v1.0";
 	
 	private static final String CONFIG_FILE_NAME = "settings.xml";
 	private static final int MAX_SAMPLE_RATE 	= 3000;
@@ -120,7 +121,7 @@ public class BrightnessChanger implements IOnDataReceived {
 		frame.setBounds(100, 100, 450, 142);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		frame.getContentPane().setLayout(null);
-		frame.setTitle("Controlador de brillo");
+		frame.setTitle("Controlador de brillo " + VERSION);
 		frame.setResizable(false);
 		frame.setIconImage(new ImageIcon("sun.png").getImage());
 		
