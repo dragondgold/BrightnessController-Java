@@ -286,7 +286,6 @@ public class BrightnessChanger implements IOnDataReceived {
 			mSettings.storeToXML(new FileOutputStream(CONFIG_FILE_NAME), "Configuracion");
 		} catch (IOException e) { e.printStackTrace(); }
 	}
-
 	
 	@Override
 	public void onDataReceived(LinkedList<Byte> receiveBuffer) {
