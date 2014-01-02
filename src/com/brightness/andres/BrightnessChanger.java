@@ -1,7 +1,11 @@
 package com.brightness.andres;
 
+import java.awt.AWTException;
 import java.awt.EventQueue;
+import java.awt.SystemTray;
+import java.awt.TrayIcon;
 
+import javax.swing.ImageIcon;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.JSlider;
@@ -12,6 +16,10 @@ import javax.swing.event.ChangeListener;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.WindowEvent;
+import java.awt.event.WindowStateListener;
 
 import javax.swing.JTextField;
 import javax.swing.JSeparator;
@@ -114,6 +122,40 @@ public class BrightnessChanger implements IOnDataReceived {
 		frame.getContentPane().setLayout(null);
 		frame.setTitle("Controlador de brillo");
 		frame.setResizable(false);
+		// Si es posible al minimizar la aplicacion se minimiza al SystemTray
+		if (SystemTray.isSupported()) {
+            System.out.println("SystemTray soportado");
+			frame.addWindowStateListener(new WindowStateListener() {
+				@Override
+				public void windowStateChanged(WindowEvent arg0) {
+					// Minimizo la ventana
+					if(arg0.getNewState() == JFrame.ICONIFIED){
+						try {
+							// Creo el tray icon
+		                    final TrayIcon trayIcon = new TrayIcon(
+		                    		new ImageIcon("bulb.gif").getImage(), "Tray Icon");
+		                    
+		                    // Cuando hago click en el icono del tray muestro nuevamente la aplicacion
+		                    trayIcon.addMouseListener(new MouseAdapter() {
+		                        @Override
+		                        public void mouseClicked(MouseEvent e) {
+		                            frame.setVisible(true);
+		                            frame.setState(JFrame.NORMAL);
+		                            SystemTray.getSystemTray().remove(trayIcon);
+		                        }
+		                    });
+		                    // Agrego el icono y minimizo la ventana
+		                    SystemTray.getSystemTray().add(trayIcon);
+		                    frame.setVisible(false);
+		                } catch (AWTException e1) {
+		                    e1.printStackTrace();
+		                }
+					}
+				}
+			});
+		}else{
+			System.out.println("SystemTray no soportado");
+		}
 		
 		final JSlider sampleRateSlider = new JSlider();
 		sampleRateSlider.setToolTipText("");
