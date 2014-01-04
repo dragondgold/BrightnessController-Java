@@ -6,6 +6,7 @@ import java.io.OutputStream;
 import java.net.DatagramSocket;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.LinkedList;
 import java.util.NoSuchElementException;
 
@@ -75,6 +76,10 @@ public class TCPServer {
 		} catch (IOException e) { e.printStackTrace(); }
 	}
 	
+	public int getLocalPort(){
+		return mServerSocket.getLocalPort();
+	}
+	
 	/**
 	 * Numero de puerto donde se encuentra la conexion
 	 * @return
@@ -103,8 +108,11 @@ public class TCPServer {
 	
 	/**
 	 * Queda en espera de una conexion al servidor. El método es bloqueante.
+	 * @param timeout tiempo de espera máxima en mili-segundos para la conexion, 0 si no hay limite
+	 * @throws SocketException tiempo de espera para la conexion agotado
 	 */
-	public void acceptConnection(){
+	public void acceptConnection(int timeout) throws SocketException{
+		mServerSocket.setSoTimeout(timeout);
 		try {
 			clientSocket = mServerSocket.accept();
 			
@@ -125,9 +133,11 @@ public class TCPServer {
 	 * @param data
 	 */
 	public synchronized void asyncWrite(byte[] data){
-		synchronized (sendBuffer) {
-			for(Byte b : data)
-				sendBuffer.add(b);	
+		if(connected){
+			synchronized (sendBuffer) {
+				for(Byte b : data)
+					sendBuffer.add(b);	
+			}
 		}
 	}
 	

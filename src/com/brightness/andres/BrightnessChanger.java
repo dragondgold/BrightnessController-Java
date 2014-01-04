@@ -34,6 +34,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.SocketException;
 import java.util.LinkedList;
 
 import javax.swing.JButton;
@@ -43,6 +44,8 @@ public class BrightnessChanger implements IOnDataReceived {
 	// Keys
 	private static final String SAMPLE_RATE_KEY = "sampleRate";
 	private static final String PORT_NUMBER_KEY = "portNumber";
+	private static final String MIN_B = "maxB";
+	private static final String MAX_B = "minB";
 	private static final String VERSION = "v1.0";
 	
 	private static final String CONFIG_FILE_NAME = "settings.xml";
@@ -50,8 +53,6 @@ public class BrightnessChanger implements IOnDataReceived {
 	private static final int MIN_SAMPLE_RATE	= 10;
 	
 	private static int bValue = 0;
-	private static int maxScreenBright = 70;
-	private static int minScreenBright = 0;
 	Settings mSettings;
 	BrightnessControllerService mService;
 	
@@ -61,6 +62,11 @@ public class BrightnessChanger implements IOnDataReceived {
 	private JSeparator separator;
 	private JLabel freqLabel;
 	private JButton initButton;
+	private JSlider sampleRateSlider;
+	private RangeSlider rangeSlider;
+	private JLabel minBLabel;
+	private JLabel maxBLabel;
+	private JLabel bLabel;
 	
 	public static void main(String[] args){
 		try {
@@ -118,7 +124,7 @@ public class BrightnessChanger implements IOnDataReceived {
 	 */
 	private void initialize() {
 		frame = new JFrame();
-		frame.setBounds(100, 100, 450, 142);
+		frame.setBounds(100, 100, 450, 238);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		frame.getContentPane().setLayout(null);
 		frame.setTitle("Controlador de brillo " + VERSION);
@@ -161,7 +167,28 @@ public class BrightnessChanger implements IOnDataReceived {
 			System.out.println("SystemTray no soportado");
 		}
 		
-		final JSlider sampleRateSlider = new JSlider();
+		rangeSlider = new RangeSlider();
+		rangeSlider.setMaximum(100);
+		rangeSlider.setMinimum(0);
+		rangeSlider.setBounds(10, 111, 208, 26);
+		rangeSlider.setValue(mSettings.getInt(MIN_B));
+		rangeSlider.setUpperValue(mSettings.getInt(MAX_B));
+		frame.getContentPane().add(rangeSlider);
+		
+		// Cambio en el slider de niveles de brillo
+		rangeSlider.addChangeListener(new ChangeListener() {
+			@Override
+			public void stateChanged(ChangeEvent arg0) {
+				minBLabel.setText(rangeSlider.getValue() + "%");
+				maxBLabel.setText(rangeSlider.getUpperValue() + "%");
+				
+				mSettings.setProperty(MAX_B, rangeSlider.getUpperValue());
+				mSettings.setProperty(MIN_B, rangeSlider.getValue());
+				saveSettings();
+			}
+		});
+		
+		sampleRateSlider = new JSlider();
 		sampleRateSlider.setToolTipText("");
 		sampleRateSlider.setMinimum(MIN_SAMPLE_RATE);
 		sampleRateSlider.setMaximum(MAX_SAMPLE_RATE);
@@ -177,46 +204,72 @@ public class BrightnessChanger implements IOnDataReceived {
 		
 		portNumberText = new JTextField();
 		portNumberText.setText(mSettings.getProperty(PORT_NUMBER_KEY));
-		portNumberText.setBounds(342, 20, 55, 25);
+		portNumberText.setBounds(377, 20, 55, 25);
 		frame.getContentPane().add(portNumberText);
 		portNumberText.setColumns(10);
 		
 		separator = new JSeparator();
 		separator.setForeground(Color.GRAY);
 		separator.setOrientation(SwingConstants.VERTICAL);
-		separator.setBounds(286, 12, 2, 92);
+		separator.setBounds(286, 12, 2, 185);
 		frame.getContentPane().add(separator);
 		
-		JLabel lblNewLabel = new JLabel("Puerto:");
-		lblNewLabel.setFont(new Font("Dialog", Font.BOLD, 12));
-		lblNewLabel.setBounds(297, 24, 55, 16);
-		frame.getContentPane().add(lblNewLabel);
+		JLabel portLabel = new JLabel("Puerto:");
+		portLabel.setFont(new Font("Dialog", Font.BOLD, 12));
+		portLabel.setBounds(297, 24, 41, 16);
+		frame.getContentPane().add(portLabel);
 		
 		freqLabel = new JLabel("Muestreo cada:");
-		freqLabel.setFont(new Font("Dialog", Font.PLAIN, 12));
-		freqLabel.setBounds(20, 43, 89, 22);
+		freqLabel.setFont(new Font("Dialog", Font.BOLD, 12));
+		freqLabel.setBounds(15, 43, 89, 22);
 		frame.getContentPane().add(freqLabel);
 		
 		initButton = new JButton("Iniciar");
-		initButton.setBounds(10, 78, 98, 26);
+		initButton.setBounds(11, 171, 98, 26);
 		frame.getContentPane().add(initButton);
 		initButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent arg0) {
-				if(!mService.startService(true)){
-					JOptionPane.showMessageDialog(frame, "Puerto no disponible");
-				}
-				else{
-					mService.addOnDataReceived(BrightnessChanger.this);
-					initButton.setEnabled(false);
-					portNumberText.setEnabled(false);
+				// Creo el service para controlar el brillo
+				mService = new BrightnessControllerService(mSettings.getInt(PORT_NUMBER_KEY), 100);
+				try {
+					int r = mService.startService(true);
+					if(r == -1){
+						JOptionPane.showMessageDialog(frame, "Puerto no disponible");
+					}else if(r == -2){
+						JOptionPane.showMessageDialog(frame, "Servicio del sistema no encontrado");
+					}
+					else{
+						mService.addOnDataReceived(BrightnessChanger.this);
+						initButton.setEnabled(false);
+						portNumberText.setEnabled(false);
+					}
+				} catch (SocketException e) {
+					JOptionPane.showMessageDialog(frame, "Tiempo de espera para la conexion agotado");
+					e.printStackTrace();
 				}
 			}
 		});
 		
 		JButton stopButton = new JButton("Detener");
-		stopButton.setBounds(119, 78, 98, 26);
+		stopButton.setBounds(120, 171, 98, 26);
 		frame.getContentPane().add(stopButton);
+		
+		minBLabel = new JLabel("New label");
+		minBLabel.setBounds(20, 138, 55, 16);
+		minBLabel.setText(mSettings.getProperty(MIN_B) + "%");
+		frame.getContentPane().add(minBLabel);
+		
+		maxBLabel = new JLabel("New label");
+		maxBLabel.setBounds(177, 138, 41, 16);
+		maxBLabel.setText(mSettings.getProperty(MAX_B) + "%");
+		frame.getContentPane().add(maxBLabel);
+		
+		bLabel = new JLabel("Niveles de brillo");
+		bLabel.setForeground(Color.BLACK);
+		bLabel.setFont(new Font("Dialog", Font.BOLD, 14));
+		bLabel.setBounds(56, 88, 125, 16);
+		frame.getContentPane().add(bLabel);
 		stopButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -269,6 +322,10 @@ public class BrightnessChanger implements IOnDataReceived {
 		// Si la configuración no existe (primera vez que se ejecuta el programa) escribo los valores por defecto
 		File configFile = new File(CONFIG_FILE_NAME);
 		if(!configFile.exists()){
+			mSettings.setProperty(PORT_NUMBER_KEY, 8888);
+			mSettings.setProperty(SAMPLE_RATE_KEY, 300);
+			mSettings.setProperty(MIN_B, 20);
+			mSettings.setProperty(MAX_B, 80);
 			System.out.println("First time config generation");
 			saveSettings();
 		}
@@ -291,9 +348,12 @@ public class BrightnessChanger implements IOnDataReceived {
 	@Override
 	public void onDataReceived(LinkedList<Byte> receiveBuffer) {
 		int receivedValue = receiveBuffer.peekLast() & 0xFF;
+		int maxScreenBright = mSettings.getInt(MAX_B);
+		int minScreenBright = mSettings.getInt(MIN_B);
 		
 		System.out.println("Received: " + receivedValue);
 		
+		// Calculo del brillo en pantalla
 		float m = (float)(minScreenBright - maxScreenBright) / 255f;
 		int newbValue = (int)(m*receivedValue) + maxScreenBright;
 		

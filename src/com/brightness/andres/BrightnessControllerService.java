@@ -1,12 +1,14 @@
 package com.brightness.andres;
 
 import java.io.IOException;
+import java.net.SocketException;
 
 public class BrightnessControllerService {
 
 	private static final byte CONFIG_HEADER 	= 'I';
 	private static final byte SAMPLE_RATE 		= 'S';
 	private static final byte BRIGHT_VALUE 		= 'B';
+	private static final String WINDOS_EXE		= "\"Brightness Controller-Windows.exe\"";
 	
 	int portNumber;				// Puerto
 	int initialSampleDelay;		// Delay entre cada muestreo
@@ -28,42 +30,45 @@ public class BrightnessControllerService {
 	/**
 	 * Inicia el servicio de captura de pantalla
 	 * @param force forzar la reconexion
-	 * @return true si se inicio correctamente, false de otro modo
+	 * @return -1 si no se pudo conectar al puerto, -2 si no se encontro el servicio indicado para el sistema, 0 de otro modo
+	 * @throws SocketException 
 	 */
-	public boolean startService (boolean force){
+	public int startService (boolean force) throws SocketException{
 		
 		// Si no fuerzo la conexion y ya estoy conectado retorno
-		if(!force && server != null && server.isConnected()) return true;
+		if(!force && server != null && server.isConnected()) return 0;
 		else{
+			
 			// Compruebo disponibilidad de puerto
-			if(!TCPServer.isPortAvailable(portNumber)){
+			if(!TCPServer.isPortAvailable(portNumber) && portNumber != 0){
 				System.out.println("Puerto " + portNumber + " no disponible");
-				return false;
+				return -1;
 			}
 			
 			// Inicio el servidor en el puerto especificado
 			System.out.println("Connecting to port " + portNumber);
 			server = new TCPServer(portNumber);
+			System.out.println("Connected to port " + server.getLocalPort());
 			
 			// Ejecuto el programa para Windows que toma las capturas de pantalla
 			if(process != null) process.destroy();
 			if(System.getProperty("os.name").contains("Windows")){
 				Runtime rt = Runtime.getRuntime();
 				try {
-					process = rt.exec("\"Brightness Controller.exe\" " + portNumber);
+					process = rt.exec(WINDOS_EXE + " " + server.getLocalPort());
 				} catch (IOException e) {
 					e.printStackTrace();
-					return false;
+					return -2;
 				}
 			}
 			
 			System.out.println("Socket waiting for connection...");
-			server.acceptConnection();
+			server.acceptConnection(2000);
 			System.out.println("Listening in port " + portNumber);
 			
 			// Envío la primera configuracion
 			sendSampleRate(initialSampleDelay);
-			return true;
+			return 0;
 		}
 	}
 	
