@@ -5,6 +5,7 @@ import java.awt.EventQueue;
 import java.awt.SystemTray;
 import java.awt.TrayIcon;
 
+import javax.swing.ButtonGroup;
 import javax.swing.ImageIcon;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
@@ -39,11 +40,19 @@ import java.util.LinkedList;
 
 import javax.swing.JButton;
 
-public class BrightnessChanger implements IOnDataReceived {
+import org.jnativehook.GlobalScreen;
+import org.jnativehook.NativeHookException;
+import org.jnativehook.keyboard.NativeKeyEvent;
+import org.jnativehook.keyboard.NativeKeyListener;
+
+import javax.swing.JRadioButton;
+
+public class BrightnessChanger implements IOnDataReceived, IOnKeyEvent {
 
 	// Keys
 	private static final String SAMPLE_RATE_KEY = "sampleRate";
 	private static final String PORT_NUMBER_KEY = "portNumber";
+	private static final String SAMPLE_MODE_KEY = "sampleMode";
 	private static final String MIN_B = "maxB";
 	private static final String MAX_B = "minB";
 	private static final String VERSION = "v1.0";
@@ -55,6 +64,7 @@ public class BrightnessChanger implements IOnDataReceived {
 	private static int bValue = 0;
 	Settings mSettings;
 	BrightnessControllerService mService;
+	KeyEvent mEvent = new KeyEvent("Alt", "Tab", null, true, "Alt-Tab");
 	
 	private JFrame frame;
 	private JTextField sampleDelayText;
@@ -67,6 +77,9 @@ public class BrightnessChanger implements IOnDataReceived {
 	private JLabel minBLabel;
 	private JLabel maxBLabel;
 	private JLabel bLabel;
+	private JRadioButton eventSampleButton;
+	private JRadioButton timeSampleButton;
+	private ButtonGroup radioButtonGroup;
 	
 	public static void main(String[] args){
 		try {
@@ -106,6 +119,7 @@ public class BrightnessChanger implements IOnDataReceived {
 		    public void run(){
 		    	System.out.println("Exiting");
 		    	mService.stopService();
+		    	removeHook();
 		    }
 		});
 		
@@ -114,6 +128,7 @@ public class BrightnessChanger implements IOnDataReceived {
 		
 		// Creo el service para controlar el brillo
 		mService = new BrightnessControllerService(mSettings.getInt(PORT_NUMBER_KEY), 100);
+		mEvent.addOnKeyEvent(this);
 		
 		// Inicio GUI
 		initialize();
@@ -124,7 +139,7 @@ public class BrightnessChanger implements IOnDataReceived {
 	 */
 	private void initialize() {
 		frame = new JFrame();
-		frame.setBounds(100, 100, 450, 238);
+		frame.setBounds(100, 100, 420, 238);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		frame.getContentPane().setLayout(null);
 		frame.setTitle("Controlador de brillo " + VERSION);
@@ -204,26 +219,26 @@ public class BrightnessChanger implements IOnDataReceived {
 		
 		portNumberText = new JTextField();
 		portNumberText.setText(mSettings.getProperty(PORT_NUMBER_KEY));
-		portNumberText.setBounds(377, 20, 55, 25);
+		portNumberText.setBounds(335, 15, 55, 25);
 		frame.getContentPane().add(portNumberText);
 		portNumberText.setColumns(10);
 		
 		separator = new JSeparator();
 		separator.setForeground(Color.GRAY);
 		separator.setOrientation(SwingConstants.VERTICAL);
-		separator.setBounds(286, 12, 2, 185);
+		separator.setBounds(244, 12, 2, 185);
 		frame.getContentPane().add(separator);
 		
 		JLabel portLabel = new JLabel("Puerto:");
 		portLabel.setFont(new Font("Dialog", Font.BOLD, 12));
-		portLabel.setBounds(297, 24, 41, 16);
+		portLabel.setBounds(255, 19, 41, 16);
 		frame.getContentPane().add(portLabel);
 		
 		freqLabel = new JLabel("Muestreo cada:");
 		freqLabel.setFont(new Font("Dialog", Font.BOLD, 12));
 		freqLabel.setBounds(15, 43, 89, 22);
 		frame.getContentPane().add(freqLabel);
-		
+
 		initButton = new JButton("Iniciar");
 		initButton.setBounds(11, 171, 98, 26);
 		frame.getContentPane().add(initButton);
@@ -231,9 +246,9 @@ public class BrightnessChanger implements IOnDataReceived {
 			@Override
 			public void actionPerformed(ActionEvent arg0) {
 				// Creo el service para controlar el brillo
-				mService = new BrightnessControllerService(mSettings.getInt(PORT_NUMBER_KEY), 100);
+				mService = new BrightnessControllerService(mSettings.getInt(PORT_NUMBER_KEY), mSettings.getInt(SAMPLE_RATE_KEY));
 				try {
-					int r = mService.startService(true);
+					int r = mService.startService(true, (byte)mSettings.getInt(SAMPLE_MODE_KEY));
 					if(r == -1){
 						JOptionPane.showMessageDialog(frame, "Puerto no disponible");
 					}else if(r == -2){
@@ -243,6 +258,8 @@ public class BrightnessChanger implements IOnDataReceived {
 						mService.addOnDataReceived(BrightnessChanger.this);
 						initButton.setEnabled(false);
 						portNumberText.setEnabled(false);
+						if(eventSampleButton.isSelected()) addHook();
+						else removeHook();
 					}
 				} catch (SocketException e) {
 					JOptionPane.showMessageDialog(frame, "Tiempo de espera para la conexion agotado");
@@ -270,6 +287,47 @@ public class BrightnessChanger implements IOnDataReceived {
 		bLabel.setFont(new Font("Dialog", Font.BOLD, 14));
 		bLabel.setBounds(56, 88, 125, 16);
 		frame.getContentPane().add(bLabel);
+		
+		// RadioButtons para definir el tipo de muestreo
+		eventSampleButton = new JRadioButton("Muestreo por evento");
+		eventSampleButton.setBounds(254, 48, 166, 24);
+		frame.getContentPane().add(eventSampleButton);
+		eventSampleButton.addActionListener(new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent arg0) {
+				System.out.println("On Demand Sample");
+				mService.setSampleMode(BrightnessControllerService.ON_DEMAND_SAMPLE);
+				mSettings.setProperty(SAMPLE_MODE_KEY, BrightnessControllerService.ON_DEMAND_SAMPLE);
+				saveSettings();
+				addHook();
+			}
+		});
+		
+		timeSampleButton = new JRadioButton("Muestreo por tiempo");
+		timeSampleButton.setBounds(254, 80, 152, 24);
+		frame.getContentPane().add(timeSampleButton);
+		timeSampleButton.addActionListener(new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent arg0) {
+				System.out.println("Timed Sample");
+				mService.setSampleMode(BrightnessControllerService.TIMED_SAMPLE);
+				mSettings.setProperty(SAMPLE_MODE_KEY, BrightnessControllerService.TIMED_SAMPLE);
+				saveSettings();
+				removeHook();
+			}
+		});
+		
+		if(mSettings.getInt(SAMPLE_MODE_KEY) == BrightnessControllerService.TIMED_SAMPLE){
+			timeSampleButton.setSelected(true);
+		}
+		else{
+			eventSampleButton.setSelected(true);
+		}
+		
+		radioButtonGroup = new ButtonGroup();
+		radioButtonGroup.add(eventSampleButton);
+		radioButtonGroup.add(timeSampleButton);
+		
 		stopButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -326,6 +384,7 @@ public class BrightnessChanger implements IOnDataReceived {
 			mSettings.setProperty(SAMPLE_RATE_KEY, 300);
 			mSettings.setProperty(MIN_B, 20);
 			mSettings.setProperty(MAX_B, 80);
+			mSettings.setProperty(SAMPLE_MODE_KEY, BrightnessControllerService.TIMED_SAMPLE);
 			System.out.println("First time config generation");
 			saveSettings();
 		}
@@ -339,13 +398,47 @@ public class BrightnessChanger implements IOnDataReceived {
 		} catch (IOException e) { e.printStackTrace(); }
 	}
 
+	
 	private void saveSettings(){
 		try {
 			mSettings.storeToXML(new FileOutputStream(CONFIG_FILE_NAME), "Configuracion");
 		} catch (IOException e) { e.printStackTrace(); }
 	}
 	
-	@Override
+	private void addHook(){
+		// Listener cuando se presiona alguna tecla. El listener es a nivel global asi que se reciben las letras
+		//  presionadas aun cuando la aplicacion no este con focus
+		try {
+			GlobalScreen.registerNativeHook();
+		} catch (NativeHookException e) { e.printStackTrace(); }
+		GlobalScreen.getInstance().addNativeKeyListener(new NativeKeyListener() {
+			
+			@Override
+			public void nativeKeyTyped(NativeKeyEvent arg0) {
+				
+			}
+			
+			@Override
+			public void nativeKeyReleased(NativeKeyEvent arg0) {
+				System.out.println("Key Released: " + NativeKeyEvent.getKeyText(arg0.getKeyCode()));
+				mEvent.keyReleased(NativeKeyEvent.getKeyText(arg0.getKeyCode()));
+			}
+			
+			@Override
+			public void nativeKeyPressed(NativeKeyEvent arg0) {
+				System.out.println("Key Pressed: " + NativeKeyEvent.getKeyText(arg0.getKeyCode()));
+				mEvent.keyPressed(NativeKeyEvent.getKeyText(arg0.getKeyCode()));
+			}
+		});
+		System.out.println("Hook registered");
+	}
+	
+	private void removeHook(){
+		GlobalScreen.unregisterNativeHook();
+		System.out.println("Hook unregistered");
+	}
+	
+	@Override	
 	public void onDataReceived(LinkedList<Byte> receiveBuffer) {
 		int receivedValue = receiveBuffer.peekLast() & 0xFF;
 		int maxScreenBright = mSettings.getInt(MAX_B);
@@ -365,5 +458,11 @@ public class BrightnessChanger implements IOnDataReceived {
 		
 		System.out.println("bValue: " + bValue);
 		mService.sendBrightnessValue(bValue);
+	}
+
+	@Override
+	public void KeyEvent(String identifier) {
+		System.out.println("Key Event: " + identifier);
+		mService.doSample();
 	}
 }
