@@ -1,5 +1,6 @@
 package com.brightness.andres;
 
+import java.io.IOException;
 import java.net.SocketException;
 
 public class BrightnessControllerService {
@@ -58,7 +59,6 @@ public class BrightnessControllerService {
 			server = new TCPServer(portNumber);
 			System.out.println("Connected to port " + server.getLocalPort());
 			
-			/*
 			// Ejecuto el programa para Windows que toma las capturas de pantalla
 			if(process != null) process.destroy();
 			if(System.getProperty("os.name").contains("Windows")){
@@ -69,10 +69,10 @@ public class BrightnessControllerService {
 					e.printStackTrace();
 					return -2;
 				}
-			}*/
+			}
 			
 			System.out.println("Socket waiting for connection...");
-			server.acceptConnection(0);
+			server.acceptConnection(2000);
 			System.out.println("Listening in port " + portNumber);
 			
 			this.sampleMode = sampleMode;
